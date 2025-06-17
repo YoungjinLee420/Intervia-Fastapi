@@ -1,5 +1,5 @@
 # app/api/v1/endpoints/interview_structure.py
-# 파라미터 오류 수정 버전
+# use_parallel 파라미터 제거 버전
 
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional, Dict, Any
@@ -18,7 +18,6 @@ class InterviewStructureRequest(BaseModel):
     interviewee_names: List[str] = Field(..., description="면접자 이름 리스트")
     interviewer_ids: List[str] = Field(..., description="면접자 ID 리스트")
     interviewer_count: int = Field(3, description="면접관 수")
-    use_parallel: bool = Field(True, description="병렬 처리 사용 여부")
 
 class InterviewStructureResponse(BaseModel):
     """면접 구조화 응답"""
@@ -28,7 +27,7 @@ class InterviewStructureResponse(BaseModel):
     total_interviewers: int = Field(..., description="처리된 면접자 수")
     error_detail: Optional[str] = Field(None, description="오류 상세")
 
-# 파싱 테스트용 요청 모델 추가
+# 파싱 테스트용 요청 모델
 class StructureParsingRequest(BaseModel):
     """구조화된 텍스트 파싱 테스트 요청"""
     structured_text: str = Field(..., description="구조화된 텍스트")
@@ -52,8 +51,7 @@ async def structure_interview(
             raw_stt_text=request.raw_stt_text,
             interviewee_names=request.interviewee_names,
             interviewer_ids=request.interviewer_ids,
-            interviewer_count=request.interviewer_count,
-            use_parallel=request.use_parallel
+            interviewer_count=request.interviewer_count
         )
         
         return InterviewStructureResponse(
@@ -98,7 +96,7 @@ async def get_structure_service_status(
 
 @router.post("/api/ai/test-structure-parsing")
 async def test_structure_parsing(
-    request: StructureParsingRequest,  # 🔧 수정: BaseModel 사용
+    request: StructureParsingRequest,
     api_key: str = Depends(verify_api_key)
 ):
     """

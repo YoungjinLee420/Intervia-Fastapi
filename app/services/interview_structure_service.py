@@ -1,4 +1,5 @@
 # app/services/interview_structure_service.py
+# use_parallel 파라미터 제거 및 코드 단순화
 
 import os
 import re
@@ -11,7 +12,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
-from concurrent.futures import ThreadPoolExecutor
 
 from openai import AsyncOpenAI
 from app.core.config import settings
@@ -306,14 +306,14 @@ A)
         
         return qa_pairs
     
-    async def _process_single_candidate(
+    def _process_single_candidate(
         self, 
         name: str, 
         content: str, 
         interviewee_names: List[str], 
         interviewer_ids: List[str]
     ) -> Dict[str, Any]:
-        """단일 면접자 데이터 처리 (병렬 처리용)"""
+        """단일 면접자 데이터 처리"""
         try:
             # 해당 이름에 매칭되는 ID 찾기
             try:
@@ -323,7 +323,7 @@ A)
                 logger.warning(f"이름 매칭 실패: {name}, 첫 번째 ID 사용")
                 interviewer_id = interviewer_ids[0] if interviewer_ids else f"unknown_{name}"
             
-            # Q&A 파싱 (CPU 집약적 작업)
+            # Q&A 파싱
             qa_data = self._parse_qa_content(content)
             
             result_data = {
@@ -344,8 +344,7 @@ A)
         raw_stt_text: str, 
         interviewee_names: List[str], 
         interviewer_ids: List[str],
-        interviewer_count: int = 3,
-        use_parallel: bool = True
+        interviewer_count: int = 3
     ) -> List[Dict[str, Any]]:
         """
         면접 텍스트 구조화 및 면접자별 QA 추출
@@ -355,23 +354,9 @@ A)
             interviewee_names: 면접자 이름 리스트
             interviewer_ids: 면접자 ID 리스트
             interviewer_count: 면접관 수
-            use_parallel: 병렬 처리 사용 여부
             
         Returns:
             면접자별 QA 데이터 리스트
-            [
-                {
-                    "interviewer_id": "id1",
-                    "interviewer_name": "김민수",
-                    "qa_data": [
-                        {"question": "자기소개 해주세요", "answer": "안녕하세요...", "question": "질문", "answer": "질문2"},
-                        ...
-                    ],
-                    "raw_content": "전체 Q&A 텍스트",
-                    "qa_count": 5
-                },
-                ...
-            ]
         """
         task_id = self._generate_task_id()
         start_time = datetime.now()
@@ -379,40 +364,28 @@ A)
         try:
             logger.info(f"면접 구조화 시작: {task_id}")
             logger.info(f"면접자: {interviewee_names}, 면접관: {interviewer_count}명")
-            logger.info(f"병렬 처리: {'사용' if use_parallel else '미사용'}")
             
             # 입력 검증
             self._validate_inputs(interviewee_names, interviewer_ids)
             self._update_state(AgentState.PROCESSING)
             
-            # 1. 텍스트 구조화 (OpenAI 호출) - 순차적 처리 필수
+            # 1. 텍스트 구조화 (OpenAI 호출)
             structured_text = await self._execute_with_retry(
                 self._structure_interview_text(raw_stt_text, interviewee_names, interviewer_count),
                 task_id
             )
             
-            # 2. 면접자별 텍스트 추출 - 순차적 처리 필수
+            # 2. 면접자별 텍스트 추출
             candidates = self._extract_candidates(structured_text, interviewee_names)
             
-            # 3. 면접자별 QA 데이터 생성 - 병렬/순차 선택 가능
-            if use_parallel and len(candidates) > 1:
-                # 병렬 처리
-                logger.info(f"병렬 처리 시작: {len(candidates)}명")
-                tasks = [
-                    self._process_single_candidate(name, content, interviewee_names, interviewer_ids)
-                    for name, content in candidates
-                ]
-                results = await asyncio.gather(*tasks)
-                
-            else:
-                # 순차 처리 (기존 방식)
-                logger.info(f"순차 처리 시작: {len(candidates)}명")
-                results = []
-                for name, content in candidates:
-                    result = await self._process_single_candidate(
-                        name, content, interviewee_names, interviewer_ids
-                    )
-                    results.append(result)
+            # 3. 면접자별 QA 데이터 생성 (순차 처리)
+            logger.info(f"면접자 처리 시작: {len(candidates)}명")
+            results = []
+            for name, content in candidates:
+                result = self._process_single_candidate(
+                    name, content, interviewee_names, interviewer_ids
+                )
+                results.append(result)
             
             processing_time = (datetime.now() - start_time).total_seconds()
             logger.info(f"면접 구조화 완료: {task_id} - {len(results)}명 처리, 소요시간: {processing_time:.2f}초")
