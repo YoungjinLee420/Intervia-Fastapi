@@ -3,6 +3,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.endpoints.ai_keywords import router as ai_keywords_router
+from app.api.v1.endpoints.interview_structure import router as interview_structure_router
 from app.core.config import settings
 
 # 로깅 설정
@@ -32,6 +33,7 @@ app.add_middleware(
 
 # 라우터 등록
 app.include_router(ai_keywords_router, tags=["AI Keywords"])
+app.include_router(interview_structure_router, tags=["Interview Structure"])
 
 @app.on_event("startup")
 async def startup_event():

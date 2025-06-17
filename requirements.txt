@@ -1,9 +1,9 @@
-fastapi==0.104.1
+fastapi==0.109.0
 uvicorn==0.24.0
 pydantic==2.5.0
 python-dotenv==1.0.0
-langchain==0.1.0
-langchain-community==0.0.13
-langchain-openai==0.0.5
-openai==1.6.1
 python-multipart==0.0.6
+openai==1.20.0
+httpx==0.24.1
+httpcore==0.17.3
+aiofiles==23.2.0
